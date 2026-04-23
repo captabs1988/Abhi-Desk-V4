@@ -644,6 +644,15 @@ function deletePanel(){
   _applyHidden();
 }
 
+function restoreAllPanels(){
+  if(!_hidden.length){alert('No hidden panels to restore.');return;}
+  var names=_hidden.map(function(t){var l=document.getElementById('lbl-'+t);return l?l.textContent:t;}).join(', ');
+  if(!confirm('Restore these panels?\n\n'+names))return;
+  _hidden=[];
+  localStorage.setItem('ad_hidden',JSON.stringify(_hidden));
+  location.reload();
+}
+
 _applyHidden();
 
 
