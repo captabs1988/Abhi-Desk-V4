@@ -812,22 +812,25 @@ function dayMax(iso){
   if(gymDays[iso])ex+=GYM_MIN;
   if(cookDays[iso])ex+=COOK_MIN;
   var base=BASE_MIN;
-  // if wake time exists, calculate: next day 2AM minus wake time
+  // if workStart exists, calculate: next day 2AM minus workStart
   var wd=wakeData[iso];
-  if(wd&&wd.wake){
-    var p=wd.wake.split(':').map(Number);
-    var wakeMins=p[0]*60+(p[1]||0); // minutes from midnight
+  if(wd&&wd.workStart){
+    var p=wd.workStart.split(':').map(Number);
+    var startMins=p[0]*60+(p[1]||0); // minutes from midnight
     var endMins=26*60; // next day 2AM = 26h from midnight
-    var available=endMins-wakeMins;
-    if(available>0&&available<=720){base=available;} // use only if <=12h
+    var available=endMins-startMins;
+    if(available>0&&available<BASE_MIN){base=available;} // reduce only if less than 12h
   }
   return Math.max(0,base-ex);
 }
 
 function wakeLabel(iso){
   var wd=wakeData[iso];
-  if(!wd||!wd.wake)return'';
-  return 'WU: '+wd.wake;
+  if(!wd)return'';
+  var parts=[];
+  if(wd.wake)parts.push('WU: '+wd.wake);
+  if(wd.workStart)parts.push('PS: '+wd.workStart);
+  return parts.join(' · ');
 }
 
 // listen for messages from parent (AbhiDesk)
