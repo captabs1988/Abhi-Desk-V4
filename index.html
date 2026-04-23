@@ -179,13 +179,15 @@ table.tbl input[type=time]:focus{border-bottom-color:var(--accent);background:rg
 <button class="tab active" draggable="true" id="tab-tracker" onclick="switchTab('tracker')" ondblclick="renameTab('tracker')"><span>📊</span><span id="lbl-tracker">2026 Daily Log</span></button>
 <button class="tab" draggable="true" id="tab-pledge" onclick="switchTab('pledge')" ondblclick="renameTab('pledge')"><span>🔥</span><span id="lbl-pledge">Pledge</span></button>
 <button class="tab" draggable="true" id="tab-sheet" onclick="switchTab('sheet')" ondblclick="renameTab('sheet')"><span>📋</span><span id="lbl-sheet">Checklist Sheet</span></button>
-<button class="tab" draggable="true" id="tab-dayflow" onclick="switchTab('dayflow')" ondblclick="renameTab('dayflow')"><span>📅</span><span id="lbl-dayflow">Abhi Planner</span></button>
+<button class="tab" draggable="true" id="tab-dayflow" onclick="switchTab('dayflow')" ondblclick="renameTab('dayflow')"><span>📅</span><span id="lbl-dayflow">DayFlow</span></button>
+<button class="tab" draggable="true" id="tab-abhiplanner" onclick="switchTab('abhiplanner')" ondblclick="renameTab('abhiplanner')"><span>🗓️</span><span id="lbl-abhiplanner">Abhi Planner</span></button>
 <button class="tab" draggable="true" id="tab-codetrack" onclick="switchTab('codetrack')" ondblclick="renameTab('codetrack')"><span>💻</span><span id="lbl-codetrack">Code Tracker</span></button>
 <button class="tab" draggable="true" id="tab-breathe" onclick="switchTab('breathe')" ondblclick="renameTab('breathe')"><span>🫁</span><span id="lbl-breathe">Breathe</span></button>
 <button class="tab" draggable="true" id="tab-znf" onclick="switchTab('znf')" ondblclick="renameTab('znf')"><span>✈</span><span id="lbl-znf">Zero Noise Flight</span></button>
 </div>
 <div class="panel-area">
-<div class="panel" id="panel-dayflow"><iframe id="fr-dayflow" title="Abhi Planner"></iframe></div>
+<div class="panel" id="panel-dayflow"><iframe id="fr-dayflow" title="DayFlow"></iframe></div>
+<div class="panel" id="panel-abhiplanner"><iframe id="fr-abhiplanner" title="Abhi Planner"></iframe></div>
 <div class="panel" id="panel-breathe"><iframe id="fr-breathe" title="Breathe"></iframe></div>
 <div class="panel" id="panel-znf">
 <style>
@@ -458,14 +460,15 @@ function postToSheet(app,rows){if(!rows||!rows.length)return;fetch(GAS_URL,{meth
 async function restoreFromSheet(){try{const res=await fetch(GAS_URL+'?app=all');const data=await res.json();if(!data.ok){alert('Restore failed: '+data.error);return;}const d=data.data;if(d.zenfocus&&d.zenfocus.length){const s=d.zenfocus.map(r=>({start:r['Session Start'],end:r['Session End'],dur:Math.round(parseFloat(r['Duration (min)']||0)*60000)}));localStorage.setItem('znf_sessions',JSON.stringify(s));console.log('ZNF restored:',s.length);}if(d.dailylog&&d.dailylog.length){const D={};d.dailylog.forEach(r=>{const date=r['Date'];if(!date)return;D[date]={sleep:r['Sleep Time']||'',wake:r['Wake Time']||'',workStart:r['Work Start']||'',stretches:r['Stretches']==='Yes',core:r['Core']==='Yes',gym:r['Gym Done']==='Yes',gymSession:r['Gym Session']||'',gymOther:r['Gym Other']||'',meditation:r['Meditation']==='Yes',running:r['Running']||'',rating:parseInt(r['Rating'])||0,mood:parseInt(r['Mood'])||0};});localStorage.setItem('ad2026',JSON.stringify(D));console.log('DailyLog restored:',Object.keys(D).length);}if(d.pledge&&d.pledge.length){const cards=d.pledge.map(r=>({id:r['Card ID'],quote:r['Quote / Pledge'],shape:r['Shape'],bgColor:r['Bg Color'],txtColor:r['Text Color'],font:r['Font'],fontSize:parseInt(r['Font Size'])||16,x:parseInt(r['X Pos'])||0,y:parseInt(r['Y Pos'])||0,w:parseInt(r['Width'])||220,h:parseInt(r['Height'])||130}));localStorage.setItem('ad_pledge',JSON.stringify(cards));console.log('Pledge restored:',cards.length);}if(d.hubsettings&&d.hubsettings.length){d.hubsettings.forEach(r=>{const k=r['Setting Key'],v=r['Setting Value'];if(!k||!v)return;if(k==='theme')localStorage.setItem('ad_theme',v);if(k==='hidden_panels')localStorage.setItem('ad_hidden',v);if(k==='custom_panels')localStorage.setItem('ad_custom_panels',v);if(k.startsWith('label_'))localStorage.setItem('adlbl_'+k.replace('label_',''),v);});}alert('✅ AbhiDesk restored! Refresh the page.');} catch(err){alert('❌ Restore failed — check console.');console.error(err);}}
 
 var APP_URIS = {
-  dayflow:   'dayflow.html',
-  breathe:   'breathe.html',
-  codetrack: 'codetrack.html'
+  dayflow:      'dayflow.html',
+  abhiplanner:  'abhi-planner.html',
+  breathe:      'breathe.html',
+  codetrack:    'codetrack.html'
 }
 var ISRC=APP_URIS;
 
-var TABS=['tracker','pledge','sheet','dayflow','codetrack','breathe','znf'];
-var PANEL={tracker:'tracker-panel',pledge:'pledge-panel',sheet:'sheet-panel',dayflow:'panel-dayflow',codetrack:'panel-codetrack',breathe:'panel-breathe',znf:'panel-znf'};
+var TABS=['tracker','pledge','sheet','dayflow','abhiplanner','codetrack','breathe','znf'];
+var PANEL={tracker:'tracker-panel',pledge:'pledge-panel',sheet:'sheet-panel',dayflow:'panel-dayflow',abhiplanner:'panel-abhiplanner',codetrack:'panel-codetrack',breathe:'panel-breathe',znf:'panel-znf'};
 var loaded={tracker:true,pledge:true,sheet:true};
 
 function switchTab(id){
@@ -605,7 +608,7 @@ var _hidden=JSON.parse(localStorage.getItem('ad_hidden')||'[]');
 
 function _applyHidden(){
   var pidMap={tracker:'tracker-panel',pledge:'pledge-panel',sheet:'sheet-panel',
-              dayflow:'panel-dayflow',codetrack:'panel-codetrack',
+              dayflow:'panel-dayflow',abhiplanner:'panel-abhiplanner',codetrack:'panel-codetrack',
               breathe:'panel-breathe',znf:'panel-znf'};
   _hidden.forEach(function(tid){
     var te=document.getElementById('tab-'+tid);
@@ -681,7 +684,7 @@ function applyTheme(dark){
   document.getElementById('ttIcon').textContent=dark?'☀️':'🌙';
   document.getElementById('ttLbl').textContent=dark?'LIGHT':'DARK';
   localStorage.setItem('ad_theme',dark?'dark':'light');
-  ['fr-dayflow','fr-breathe','fr-codetrack'].forEach(function(id){
+  ['fr-dayflow','fr-abhiplanner','fr-breathe','fr-codetrack'].forEach(function(id){
     var fr=document.getElementById(id);
     if(fr&&fr.contentWindow){try{fr.contentWindow.postMessage({type:'theme',dark:dark},'*');}catch(e){}}
   });
