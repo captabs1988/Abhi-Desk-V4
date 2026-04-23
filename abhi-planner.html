@@ -586,6 +586,8 @@ body[data-editmode="drag"] #cp.panning{cursor:grabbing!important;}
 
 <!-- CTX MENU (calendar day) -->
 <div id="calctx">
+  <div class="ci" onclick="calCtxAct('quickadd')">➕ Quick add task</div>
+  <div class="csep"></div>
   <div class="ci" onclick="calCtxAct('next')">⏩ Move all tasks to next day</div>
   <div class="ci" onclick="calCtxAct('slot')">🔍 Move to next available slot</div>
   <div class="ci" onclick="calCtxAct('date')">📅 Move to custom date…</div>
@@ -619,6 +621,27 @@ body[data-editmode="drag"] #cp.panning{cursor:grabbing!important;}
     <div class="cdateact">
       <button class="btn" onclick="closeCDateDlg()">Cancel</button>
       <button class="btn on" onclick="confirmCDate()">Move →</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK ADD TASK DIALOG -->
+<div id="qadlg" style="position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:center;justify-content:center;z-index:700;">
+  <div class="cdatebox" style="width:320px;">
+    <h3>➕ Quick Add Task</h3>
+    <p id="qa-desc" style="font-size:10px;color:var(--mu);">Adding task to —</p>
+    <input type="text" class="cdateinp" id="qa-title" placeholder="Task name" autocomplete="off" />
+    <div style="display:flex;gap:8px;align-items:center;">
+      <label style="font-size:10px;color:var(--mu);flex-shrink:0;">Duration:</label>
+      <input type="text" class="cdateinp" id="qa-dur" placeholder="e.g. 1h 30m or 1:30" style="flex:1;" />
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <label style="font-size:10px;color:var(--mu);flex-shrink:0;">Color:</label>
+      <div id="qa-colors" style="display:flex;gap:3px;flex-wrap:wrap;"></div>
+    </div>
+    <div class="cdateact">
+      <button class="btn" onclick="closeQuickAdd()">Cancel</button>
+      <button class="btn on" onclick="confirmQuickAdd()">Add ✓</button>
     </div>
   </div>
 </div>
@@ -779,12 +802,51 @@ body[data-editmode="drag"] #cp.panning{cursor:grabbing!important;}
 // ════════════════════════════════════════════════
 var COLS=['#6c8aff','#a78bfa','#f59e0b','#34d399','#ef4444','#38bdf8','#f87171','#c084fc','#fb923c','#4ade80','#818cf8','#e879f9','#fbbf24','#22d3ee','#a3e635'];
 var GYM_MIN=120, COOK_MIN=60, BASE_MIN=720;
+var wakeData={}; // {iso: {wake:'HH:MM', workStart:'HH:MM'}}
+var WAKE_KEY='abhiPlanner_wakeData';
+try{wakeData=JSON.parse(localStorage.getItem(WAKE_KEY)||'{}');}catch(e){}
+function saveWakeData(){try{localStorage.setItem(WAKE_KEY,JSON.stringify(wakeData));}catch(e){}}
+
 function dayMax(iso){
   var ex=0;
   if(gymDays[iso])ex+=GYM_MIN;
   if(cookDays[iso])ex+=COOK_MIN;
-  return BASE_MIN-ex;
+  var base=BASE_MIN;
+  // if wake time exists, calculate: next day 2AM minus wake time
+  var wd=wakeData[iso];
+  if(wd&&wd.wake){
+    var p=wd.wake.split(':').map(Number);
+    var wakeMins=p[0]*60+(p[1]||0); // minutes from midnight
+    var endMins=26*60; // next day 2AM = 26h from midnight
+    var available=endMins-wakeMins;
+    if(available>0&&available<=720){base=available;} // use only if <=12h
+  }
+  return Math.max(0,base-ex);
 }
+
+function wakeLabel(iso){
+  var wd=wakeData[iso];
+  if(!wd||!wd.wake)return'';
+  return 'WU: '+wd.wake;
+}
+
+// listen for messages from parent (AbhiDesk)
+window.addEventListener('message',function(e){
+  if(!e.data||!e.data.type)return;
+  if(e.data.type==='theme'){
+    document.body.dataset.theme=e.data.dark?'dark':'light';
+    return;
+  }
+  if(e.data.type==='prodStart'){
+    var iso=e.data.iso;
+    if(!iso)return;
+    if(!wakeData[iso])wakeData[iso]={};
+    if(e.data.wake)wakeData[iso].wake=e.data.wake;
+    if(e.data.workStart)wakeData[iso].workStart=e.data.workStart;
+    saveWakeData();
+    renderCal();
+  }
+});
 
 // ════════════════════════════════════════════════
 // STATE
@@ -803,7 +865,7 @@ function markSaveStatus(txt,ok){
   el.classList.toggle('ok',!!ok);
 }
 function getPlannerSnapshot(){
-  return {schedule:schedule,gymDays:gymDays,cookDays:cookDays,nodes:nodes,cScale:cScale,cOffX:cOffX,cOffY:cOffY,theme:document.body.dataset.theme||'dark',ts:Date.now()};
+  return {schedule:schedule,gymDays:gymDays,cookDays:cookDays,nodes:nodes,wakeData:wakeData,cScale:cScale,cOffX:cOffX,cOffY:cOffY,theme:document.body.dataset.theme||'dark',ts:Date.now()};
 }
 function savePlannerNow(){
   try{
@@ -827,6 +889,7 @@ function restorePlannerAutosave(){
     if(d.gymDays)gymDays=d.gymDays;
     if(d.cookDays)cookDays=d.cookDays;
     if(d.nodes)nodes=d.nodes;
+    if(d.wakeData){wakeData=d.wakeData;saveWakeData();}
     if(d.cScale!==undefined)cScale=d.cScale;
     if(d.cOffX!==undefined)cOffX=d.cOffX;
     if(d.cOffY!==undefined)cOffY=d.cOffY;
@@ -1011,7 +1074,35 @@ function mkSpacious(iso,idx){
   togs.appendChild(mkTogRow('🍳 Cook (1h)',iso,'cook',cookDays));
 
   dateCol.appendChild(dow);dateCol.appendChild(num);dateCol.appendChild(mon);
-  dateCol.appendChild(hrs);dateCol.appendChild(bar);dateCol.appendChild(togs);
+  // show wake-up time if set
+  var wuLbl=wakeLabel(iso);
+  if(wuLbl){
+    var wuEl=E('div','day-hrs');
+    wuEl.style.cssText='color:var(--ac);font-weight:700;';
+    wuEl.textContent=wuLbl;
+    dateCol.appendChild(wuEl);
+  }
+  dateCol.appendChild(hrs);dateCol.appendChild(bar);
+  // remaining time warning
+  if(mins>0&&max>0){
+    var remain=max-mins;
+    if(remain<0){
+      var remEl=E('div','day-hrs ov');
+      remEl.textContent='⚠ Over by '+Math.floor(-remain/60)+'h'+((-remain)%60?' '+((-remain)%60)+'m':'');
+      dateCol.appendChild(remEl);
+    } else if(remain<=120&&remain>=0){
+      var remEl2=E('div','day-hrs');
+      remEl2.style.color='var(--gd)';
+      remEl2.textContent='⏳ '+Math.floor(remain/60)+'h'+(remain%60?' '+(remain%60)+'m':'')+' left';
+      dateCol.appendChild(remEl2);
+    }
+  }
+  dateCol.appendChild(togs);
+  // click on date area to quick-add task
+  dateCol.addEventListener('click',function(ev){
+    if(ev.target.closest('.tog')||ev.target.closest('input'))return; // ignore toggle clicks
+    openQuickAdd(iso);
+  });
   row.appendChild(dateCol);
 
   // RIGHT: tasks column
@@ -1234,10 +1325,70 @@ function confirmCDate(){
   renderCal();
 }
 
+// ════════════════════════════════════════════════
+// QUICK ADD TASK
+// ════════════════════════════════════════════════
+var qaIso=null;
+var qaColor=COLS[0];
+function openQuickAdd(iso){
+  qaIso=iso;
+  qaColor=COLS[Math.floor(Math.random()*COLS.length)];
+  var dlg=document.getElementById('qadlg');
+  dlg.style.display='flex';
+  document.getElementById('qa-desc').textContent='Adding task to '+fmtD(iso);
+  document.getElementById('qa-title').value='';
+  document.getElementById('qa-dur').value='';
+  // render color dots
+  var cc=document.getElementById('qa-colors');cc.innerHTML='';
+  COLS.forEach(function(c){
+    var d=document.createElement('div');
+    d.style.cssText='width:14px;height:14px;border-radius:50%;cursor:pointer;border:2px solid '+(c===qaColor?'#fff':'transparent')+';background:'+c+';';
+    d.onclick=function(){qaColor=c;openQuickAdd(iso);}; // re-render to update selection
+    cc.appendChild(d);
+  });
+  setTimeout(function(){document.getElementById('qa-title').focus();},100);
+}
+function closeQuickAdd(){document.getElementById('qadlg').style.display='none';qaIso=null;}
+function qaParseTime(str){
+  if(!str||!str.trim())return{h:0,m:30,ok:true}; // default 30min
+  str=str.trim().toLowerCase();
+  // "1:30" or "1h 30m" or "1h" or "30m" or "90"
+  var hm=str.match(/^(\d+):(\d+)$/);
+  if(hm)return{h:parseInt(hm[1]),m:parseInt(hm[2]),ok:true};
+  var hOnly=str.match(/^(\d+)\s*h$/);
+  if(hOnly)return{h:parseInt(hOnly[1]),m:0,ok:true};
+  var mOnly=str.match(/^(\d+)\s*m$/);
+  if(mOnly)return{h:0,m:parseInt(mOnly[1]),ok:true};
+  var both=str.match(/^(\d+)\s*h\s*(\d+)\s*m$/);
+  if(both)return{h:parseInt(both[1]),m:parseInt(both[2]),ok:true};
+  var num=parseInt(str);
+  if(!isNaN(num))return{h:0,m:num,ok:true}; // treat plain number as minutes
+  return{h:0,m:30,ok:false};
+}
+function confirmQuickAdd(){
+  if(!qaIso)return;
+  var title=document.getElementById('qa-title').value.trim();
+  if(!title){document.getElementById('qa-title').focus();return;}
+  var t=qaParseTime(document.getElementById('qa-dur').value);
+  pushU();
+  if(!schedule[qaIso])schedule[qaIso]=[];
+  schedule[qaIso].push({id:uid(),title:title,hours:t.h,minutes:t.m,color:qaColor,done:false});
+  renderCal();
+  closeQuickAdd();
+}
+// Enter key to confirm
+document.addEventListener('keydown',function(e){
+  if(document.getElementById('qadlg').style.display==='flex'){
+    if(e.key==='Enter'){e.preventDefault();confirmQuickAdd();}
+    if(e.key==='Escape'){closeQuickAdd();}
+  }
+});
+
 function calCtxAct(action){
   closeAllCtx();
   if(!calCtxIso)return;
   var iso=calCtxIso;
+  if(action==='quickadd'){openQuickAdd(iso);return;}
   if(action==='date'){openCDateDlg('day',iso,null);return;}
   pushU();
   if(action==='next'){
@@ -2388,7 +2539,7 @@ function exportD(){
 function importD(e){
   var f=e.target.files[0];if(!f)return;
   var r=new FileReader();
-  r.onload=function(ev){try{var d=JSON.parse(ev.target.result);if(d.schedule)schedule=d.schedule;if(d.gymDays)gymDays=d.gymDays;if(d.cookDays)cookDays=d.cookDays;if(d.nodes)nodes=d.nodes;if(d.cScale!==undefined)cScale=d.cScale;if(d.cOffX!==undefined)cOffX=d.cOffX;if(d.cOffY!==undefined)cOffY=d.cOffY;if(d.theme)document.body.dataset.theme=d.theme;applyT();renderCal();renderCanvas();savePlannerNow();}catch(_){alert('Invalid file');}};
+  r.onload=function(ev){try{var d=JSON.parse(ev.target.result);if(d.schedule)schedule=d.schedule;if(d.gymDays)gymDays=d.gymDays;if(d.cookDays)cookDays=d.cookDays;if(d.nodes)nodes=d.nodes;if(d.wakeData){wakeData=d.wakeData;saveWakeData();}if(d.cScale!==undefined)cScale=d.cScale;if(d.cOffX!==undefined)cOffX=d.cOffX;if(d.cOffY!==undefined)cOffY=d.cOffY;if(d.theme)document.body.dataset.theme=d.theme;applyT();renderCal();renderCanvas();savePlannerNow();}catch(_){alert('Invalid file');}};
   r.readAsText(f);e.target.value='';
 }
 function excelTimeToHM(v){
