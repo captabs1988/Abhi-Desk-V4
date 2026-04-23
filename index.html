@@ -775,6 +775,12 @@ function prodStart(){
   toast.classList.add('show');clearTimeout(window._tt);
   window._tt=setTimeout(function(){toast.classList.remove('show');},4000);
   goToday();
+  // send wake time to Abhi Planner panel
+  var wakeTime=(D[key]&&D[key].wake)?D[key].wake:'';
+  var apFr=document.getElementById('fr-abhiplanner');
+  if(apFr&&apFr.contentWindow){
+    try{apFr.contentWindow.postMessage({type:'prodStart',iso:key,workStart:t,wake:wakeTime},'*');}catch(e){}
+  }
 }
 
 function refreshGap(key){
