@@ -300,14 +300,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 ::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
 
 /* ── DRAG MODE INDICATOR ── */
-#cp.dragmode-on{cursor:grab!important;}
-#cp.dragmode-on *{cursor:grab!important;}
-#cp.dragmode-on .cntx-txt,
-#cp.dragmode-on .ed,
-#cp.dragmode-on input,
-#cp.dragmode-on button,
-#cp.dragmode-on select,
-#cp.dragmode-on textarea{cursor:default!important;}
+/* canvas cursor handled via data-editmode attribute CSS */
 
 /* ── UNIVERSAL RESIZE HANDLE — bigger, always visible on hover ── */
 .cn-rsz{
@@ -364,20 +357,58 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 }
 .cntx:hover .cntx-del{opacity:1;}
 
-/* ── DRAG MODE badge on toolbar ── */
-#drag-mode-badge{
-  font-size:9px;font-family:monospace;padding:2px 8px;
-  border-radius:999px;border:1px solid;
-  transition:all .2s;
+/* ── MOVE / EDIT TOGGLE ── */
+#mode-toggle{display:flex;align-items:center;background:var(--sf2);border:1px solid var(--bd);border-radius:6px;overflow:hidden;flex-shrink:0;}
+.mode-btn{padding:4px 12px;font-size:11px;font-weight:700;border:none;background:transparent;color:var(--mu);cursor:pointer;font-family:inherit;transition:all .15s;white-space:nowrap;}
+.mode-btn.active{background:var(--ac);color:#fff;}
+#mode-toggle .mode-btn:first-child{border-right:1px solid var(--bd);}
+
+/* ── MOVE MODE: freeze all content editing ── */
+body[data-editmode="drag"] .cns .ed,
+body[data-editmode="drag"] .cnp .ed,
+body[data-editmode="drag"] .stage-main,
+body[data-editmode="drag"] .cntx-txt{
+  pointer-events:none;
+  user-select:none;
 }
-#drag-mode-badge.drag{
-  background:rgba(108,138,255,.18);color:var(--ac);
-  border-color:var(--ac);
+body[data-editmode="drag"] [contenteditable]{
+  pointer-events:none;
+  user-select:none;
+  -webkit-user-select:none;
 }
-#drag-mode-badge.edit{
-  background:rgba(245,158,11,.12);color:var(--gd);
-  border-color:var(--gd);
+/* In move mode hide edit-only controls */
+body[data-editmode="drag"] .cn-rsz,
+body[data-editmode="drag"] .stage-del,
+body[data-editmode="drag"] .proj-add,
+body[data-editmode="drag"] .cnb-mode,
+body[data-editmode="drag"] .cnb-subadd,
+body[data-editmode="drag"] .sb-x{
+  display:none!important;
 }
+/* In move mode entire node is grab cursor */
+body[data-editmode="drag"] .cns,
+body[data-editmode="drag"] .cnp,
+body[data-editmode="drag"] .cnb,
+body[data-editmode="drag"] .cntx{
+  cursor:grab!important;
+}
+body[data-editmode="drag"] .cns *,
+body[data-editmode="drag"] .cnp *,
+body[data-editmode="drag"] .cnb *,
+body[data-editmode="drag"] .cntx *{
+  cursor:grab!important;
+}
+/* Keep delete button clickable in move mode */
+body[data-editmode="drag"] .cn-del{
+  pointer-events:all!important;
+  cursor:pointer!important;
+}
+/* In edit mode, canvas itself is crosshair */
+body[data-editmode="edit"] #cp{cursor:crosshair;}
+
+/* In move mode canvas is grab */
+body[data-editmode="drag"] #cp{cursor:grab;}
+body[data-editmode="drag"] #cp.panning{cursor:grabbing!important;}
 
 /* ── BLOCK resize edges ── */
 .cnb .cn-rsz{bottom:-1px;right:-1px;}
@@ -470,38 +501,32 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 </head>
 <body>
 <div id="tb">
-  <h1>▸ AbhiPlanner v6</h1>
+  <h1>▸ AbhiPlanner</h1>
   <div class="sp"></div>
   <button class="btn" onclick="undo()" title="Ctrl+Z">↩ undo</button>
   <div class="sp"></div>
+  <!-- Calendar view -->
   <button class="btn" id="bv-c" onclick="setView('compact')">compact</button>
   <button class="btn on" id="bv-s" onclick="setView('spacious')">spacious</button>
   <button class="btn" id="bv-w" onclick="setView('week')">week</button>
   <div class="sp"></div>
   <button class="btn" onclick="toggleTheme()">◐ theme</button>
-  <select class="btn" onchange="document.body.style.fontFamily=this.value">
-    <option value="'Segoe UI',system-ui,sans-serif">sans</option>
-    <option value="Georgia,serif">serif</option>
-    <option value="monospace">mono</option>
-  </select>
   <button class="btn" onclick="chFS(-1)">A-</button>
   <span id="fsl" style="font-size:9px;color:var(--mu)">13</span>
   <button class="btn" onclick="chFS(1)">A+</button>
   <div class="sp"></div>
-  <button class="btn" onclick="cTool='pan';updHint()">✋ pan</button>
-  <button class="btn" onclick="cTool='draw';updHint()">✏ draw</button>
-  <button class="btn" id="tool-sel" onclick="setCanvasTool('select')">⬚ select</button>
+  <!-- MOVE / EDIT TOGGLE — the only mode switch needed -->
+  <div id="mode-toggle" title="Switch between Move and Edit mode (shortcut: M)">
+    <button id="md-move" class="mode-btn active" onclick="setEditMode('drag')">🤚 Move</button>
+    <button id="md-edit" class="mode-btn" onclick="setEditMode('edit')">✏ Edit</button>
+  </div>
   <div class="sp"></div>
-  <button class="btn mode-pill on" id="md-drag" onclick="setEditMode('drag')">🤚 Drag Mode</button>
-  <button class="btn mode-pill" id="md-edit" onclick="setEditMode('edit')">✏ Edit Mode</button>
-  <span id="drag-mode-badge" class="drag">DRAG</span>
-  <div class="sp"></div>
-  <button class="btn" onclick="exportD()">↓ export</button>
-  <label class="btn" style="cursor:pointer">↑ import<input type="file" accept=".json" style="display:none" onchange="importD(event)"></label>
-  <label class="btn" style="cursor:pointer">⇢ excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcelBlocks(event)"></label>
+  <button class="btn" onclick="exportD()" title="Export (Ctrl+S)">↓ export</button>
+  <label class="btn" style="cursor:pointer" title="Import JSON">↑ import<input type="file" accept=".json" style="display:none" onchange="importD(event)"></label>
+  <label class="btn" style="cursor:pointer" title="Import Excel/CSV">⇢ excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcelBlocks(event)"></label>
   <div class="sp"></div>
   <button class="btn" onclick="openPI()" style="border-color:var(--ac2);color:var(--ac2);">⊞ paste import</button>
-  <div id="dw-quote">all time estimates assume zero distractions · deep work only</div>
+  <div id="dw-quote">scroll = pan · ctrl+scroll = zoom · M = toggle mode</div>
 </div>
 
 <div id="main">
@@ -526,7 +551,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <div id="cw"></div>
     <div id="th">✏ drag canvas to draw box · right-click for options</div>
     <div id="shortcuts-hint" style="position:absolute;bottom:36px;left:8px;font-size:8px;font-family:monospace;color:var(--mu);background:var(--sf);border:1px solid var(--bd);padding:3px 8px;border-radius:4px;pointer-events:none;z-index:20;opacity:.7;line-height:1.7;">
-      Ctrl+scroll = zoom · Scroll = pan · Shift+scroll = pan horiz · Space+drag = pan · D = toggle drag/edit
+      Ctrl+scroll = zoom at cursor · Scroll = pan · M = toggle Move/Edit · Space+drag = pan · Ctrl+0 = reset
     </div>
     <div id="sel-badge">0 selected</div>
     <div id="cnav">
@@ -844,20 +869,20 @@ document.addEventListener('keydown',function(e){
   if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();undo();}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();exportD();}
   if(e.key==='Escape'){selectedNodes.clear();selectedStages=[];updateSelBadge();renderCanvas();closeAllCtx();}
-  // Canvas zoom shortcuts
   if(!e.target.isContentEditable&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){
+    // Zoom shortcuts
     if((e.ctrlKey||e.metaKey)&&(e.key==='='||e.key==='+')){e.preventDefault();doZoom(.15);}
     if((e.ctrlKey||e.metaKey)&&e.key==='-'){e.preventDefault();doZoom(-.15);}
     if((e.ctrlKey||e.metaKey)&&e.key==='0'){e.preventDefault();resetV();}
-    // D key = toggle drag/edit mode quickly
-    if(e.key==='d'&&!e.ctrlKey&&!e.metaKey){setEditMode(editMode==='drag'?'edit':'drag');}
-    // Space+drag = pan (toggle pan tool temporarily)
-    if(e.key===' '&&!e.repeat){e.preventDefault();if(cTool!=='pan'){_prevTool=cTool;cTool='pan';cpanel.style.cursor='grab';}}
+    // M = toggle Move/Edit mode
+    if(e.key==='m'||e.key==='M'){setEditMode(editMode==='drag'?'edit':'drag');}
+    // Space = temporary pan
+    if(e.key===' '&&!e.repeat){e.preventDefault();if(!_prevTool){_prevTool=cTool;cTool='pan';cpanel.style.cursor='grab';}}
   }
 });
 var _prevTool=null;
 document.addEventListener('keyup',function(e){
-  if(e.key===' '&&_prevTool){cTool=_prevTool;_prevTool=null;cpanel.style.cursor='crosshair';}
+  if(e.key===' '&&_prevTool!==null){cTool=_prevTool;_prevTool=null;cpanel.style.cursor=editMode==='drag'?'grab':'crosshair';}
 });
 
 // ════════════════════════════════════════════════
@@ -927,26 +952,14 @@ function E(tag,cls){var e=document.createElement(tag);if(cls)e.className=cls;ret
 function setEditMode(mode){
   editMode=mode==='edit'?'edit':'drag';
   document.body.setAttribute('data-editmode',editMode);
-  document.getElementById('md-drag').classList.toggle('on',editMode==='drag');
-  document.getElementById('md-edit').classList.toggle('on',editMode==='edit');
-  // Update badge
-  var badge=document.getElementById('drag-mode-badge');
-  if(badge){
-    badge.textContent=editMode==='drag'?'🤚 DRAG':'✏ EDIT';
-    badge.className='';
-    badge.id='drag-mode-badge';
-    badge.classList.add(editMode);
-  }
-  // Update canvas panel cursor class
-  var cp=document.getElementById('cp');
-  if(cp)cp.classList.toggle('dragmode-on',editMode==='drag');
-  renderCanvas();updHint();
-}
-function setCanvasTool(t){
-  cTool=t;
-  document.getElementById('tool-sel').classList.toggle('on',t==='select');
+  document.getElementById('md-move').classList.toggle('active',editMode==='drag');
+  document.getElementById('md-edit').classList.toggle('active',editMode==='edit');
+  // In move mode canvas pans on empty mousedown; in edit mode it draws
+  cTool=editMode==='drag'?'pan':'draw';
+  renderCanvas();
   updHint();
 }
+function setCanvasTool(t){cTool=t;updHint();}
 
 // ════════════════════════════════════════════════
 // CALENDAR VIEW
@@ -1666,10 +1679,10 @@ function fitToContent(){
   applyT();
 }
 function updHint(){
-  var base=cTool==='draw'?'✏ drag empty area to draw · right-click for menu':cTool==='select'?'⬚ drag to lasso-select multiple blocks':'✋ drag to pan · scroll to zoom';
-  var modeTxt=editMode==='drag'?' · 🤚 DRAG MODE: click anywhere on block to drag'
-    :' · ✏ EDIT MODE: click text to edit, resize handles appear on hover';
-  document.getElementById('th').textContent=base+modeTxt;
+  var el=document.getElementById('th');if(!el)return;
+  el.textContent=editMode==='drag'
+    ?'🤚 MOVE MODE — drag anything · scroll=pan · Ctrl+scroll=zoom · right-click=menu'
+    :'✏ EDIT MODE — click to edit content · right-click=create/delete · scroll=pan';
 }
 function updateSelBadge(){
   var badge=document.getElementById('sel-badge');
@@ -1678,45 +1691,64 @@ function updateSelBadge(){
   else badge.style.display='none';
 }
 
-// WHEEL — scroll to pan, ctrl+scroll or pinch to zoom
+// WHEEL — Google Maps behaviour:
+// • Plain scroll = pan (vertical trackpad or mouse wheel)
+// • Ctrl/Cmd + scroll = zoom centred on cursor
+// • Shift + scroll = horizontal pan
 cpanel.addEventListener('wheel',function(e){
   e.preventDefault();e.stopPropagation();
   var r=cpanel.getBoundingClientRect();
-  var mx=e.clientX-r.left,my=e.clientY-r.top;
+  var mx=e.clientX-r.left, my=e.clientY-r.top;
 
   if(e.ctrlKey||e.metaKey){
-    // Zoom centred on cursor
-    var delta=e.deltaY>0?-0.1:0.1;
-    var ns=Math.min(4,Math.max(0.08,cScale+delta));
-    cOffX=mx-(mx-cOffX)*(ns/cScale);cOffY=my-(my-cOffY)*(ns/cScale);
-    cScale=ns;applyT();
+    // Zoom — centred exactly on mouse cursor position (Google Maps style)
+    var zoomFactor=e.deltaY>0?0.92:1.09; // smooth multiplicative zoom
+    var ns=Math.min(5,Math.max(0.05,cScale*zoomFactor));
+    // Adjust offset so the point under cursor stays fixed
+    cOffX=mx-(mx-cOffX)*(ns/cScale);
+    cOffY=my-(my-cOffY)*(ns/cScale);
+    cScale=ns;
+    applyT();
   } else if(e.shiftKey){
     // Horizontal pan
-    cOffX-=e.deltaY;applyT();
+    cOffX-=e.deltaY*0.8;
+    applyT();
   } else {
-    // Vertical pan (natural scroll)
-    cOffX-=e.deltaX;cOffY-=e.deltaY;applyT();
+    // Pan — natural direction, both axes (trackpad)
+    var speed=1.0;
+    cOffX-=e.deltaX*speed;
+    cOffY-=e.deltaY*speed;
+    applyT();
   }
 },{passive:false});
 
 world.addEventListener('dragover',function(e){e.stopPropagation();});
 
 cpanel.addEventListener('mousedown',function(e){
-  if(e.button===1){panning=true;panSt={x:e.clientX,y:e.clientY,ox:cOffX,oy:cOffY};cpanel.style.cursor='grabbing';return;}
-  // Space+drag = pan regardless of tool
-  var empty=(e.target===cpanel||e.target===world||e.target===drRect||e.target===selRect);
-  var activeTool=(_prevTool!==null)?'pan':cTool; // space = temp pan
-  if(empty&&activeTool==='pan'&&e.button===0){panning=true;panSt={x:e.clientX,y:e.clientY,ox:cOffX,oy:cOffY};cpanel.style.cursor='grabbing';}
-  else if(empty&&activeTool==='select'&&e.button===0){
-    lasso=true;var r=cpanel.getBoundingClientRect();
-    lassoSt={x:e.clientX-r.left,y:e.clientY-r.top};
-    selRect.style.cssText='display:block;left:'+lassoSt.x+'px;top:'+lassoSt.y+'px;width:0;height:0;';
-    if(!e.shiftKey){selectedNodes.clear();}
+  // Middle mouse always pans
+  if(e.button===1){
+    panning=true;panSt={x:e.clientX,y:e.clientY,ox:cOffX,oy:cOffY};
+    cpanel.style.cursor='grabbing';return;
   }
-  else if(empty&&activeTool==='draw'&&e.button===0){
-    drawing=true;var r2=cpanel.getBoundingClientRect();
-    drawSt={x:e.clientX-r2.left,y:e.clientY-r2.top};
-    drRect.style.cssText='display:block;left:'+drawSt.x+'px;top:'+drawSt.y+'px;width:0;height:0;';
+  if(e.button!==0)return;
+
+  var onEmpty=(e.target===cpanel||e.target===world||e.target===drRect||e.target===selRect);
+  var spaceHeld=(_prevTool!==null);
+
+  if(spaceHeld||editMode==='drag'){
+    // Move mode OR space held: clicking empty canvas pans
+    if(onEmpty){
+      panning=true;panSt={x:e.clientX,y:e.clientY,ox:cOffX,oy:cOffY};
+      cpanel.style.cursor='grabbing';
+      cpanel.classList.add('panning');
+    }
+  } else {
+    // Edit mode: draw rect on empty canvas
+    if(onEmpty){
+      drawing=true;var r2=cpanel.getBoundingClientRect();
+      drawSt={x:e.clientX-r2.left,y:e.clientY-r2.top};
+      drRect.style.cssText='display:block;left:'+drawSt.x+'px;top:'+drawSt.y+'px;width:0;height:0;';
+    }
   }
 });
 
@@ -1747,10 +1779,21 @@ document.addEventListener('mousemove',function(e){
     renderCanvas();
   }
   if(nDrag){
-    nDrag.node.x=Math.round((e.clientX-cOffX)/cScale-nDragOff.x);
-    nDrag.node.y=Math.round((e.clientY-cOffY)/cScale-nDragOff.y);
+    var nx=Math.round((e.clientX-cOffX)/cScale-nDragOff.x);
+    var ny=Math.round((e.clientY-cOffY)/cScale-nDragOff.y);
+    nDrag.node.x=nx;nDrag.node.y=ny;
     var el2=document.getElementById(nDrag.node.id);
-    if(el2){el2.style.left=nDrag.node.x+'px';el2.style.top=nDrag.node.y+'px';}
+    if(el2){el2.style.left=nx+'px';el2.style.top=ny+'px';}
+    // Move children (if dragging a section)
+    if(nDrag.childOffsets&&nDrag.childOffsets.length){
+      nDrag.childOffsets.forEach(function(co){
+        var cn=nDrag.children.find(function(c){return c.id===co.id;});
+        if(!cn)return;
+        cn.x=nx+co.dx;cn.y=ny+co.dy;
+        var cel=document.getElementById(co.id);
+        if(cel){cel.style.left=cn.x+'px';cel.style.top=cn.y+'px';}
+      });
+    }
   }
   if(nResize){
     var dx=(e.clientX-nResize.sx)/cScale,dy=(e.clientY-nResize.sy)/cScale;
@@ -1770,7 +1813,11 @@ document.addEventListener('mousemove',function(e){
 });
 
 document.addEventListener('mouseup',function(e){
-  if(panning){panning=false;cpanel.style.cursor=cTool==='pan'?'grab':'crosshair';}
+  if(panning){
+    panning=false;
+    cpanel.style.cursor=editMode==='drag'?'grab':'crosshair';
+    cpanel.classList.remove('panning');
+  }
   if(drawing){
     drawing=false;drRect.style.display='none';
     var r=cpanel.getBoundingClientRect(),cx=e.clientX-r.left,cy=e.clientY-r.top;
@@ -1783,10 +1830,8 @@ document.addEventListener('mouseup',function(e){
   if(lasso){lasso=false;selRect.style.display='none';updateSelBadge();renderCanvas();}
   if(nDrag){
     pushU();
-    // Remove dragging class
     document.querySelectorAll('.dragging').forEach(function(el){el.classList.remove('dragging');});
     nDrag=null;
-    // Restore cursor
     cpanel.style.cursor=editMode==='drag'?'grab':'crosshair';
   }
   if(nResize){pushU();nResize=null;}
@@ -1892,15 +1937,11 @@ function mkTextBox(n){
   setTimeout(autoGrow,0);
   body.appendChild(ta);
   div.appendChild(body);
-  // ── Resize handle ──
   div.appendChild(mkResizeHandle(n));
-  // ── Delete button (always visible on hover — prominent for textboxes) ──
   var delBtn2=E('div','cn-del cntx-del');delBtn2.textContent='×';delBtn2.title='Delete this note';
   delBtn2.addEventListener('click',function(e){e.stopPropagation();pushU();nodes=nodes.filter(function(x){return x.id!==n.id;});renderCanvas();});
   div.appendChild(delBtn2);
-  // ── Drag: bar always drags; in drag mode whole div drags ──
-  setupDrag(bar,n);
-  if(editMode==='drag') setupDrag(div,n);
+  setupDrag(div,n);
   return div;
 }
 
@@ -1972,21 +2013,52 @@ function mkDotGrip(variant, getDragBlock, title){
   return g;
 }
 
+function getNodesInsideSection(sec){
+  // Returns all nodes whose centre falls inside the section bounds
+  var sx=sec.x,sy=sec.y,sw=sec.w||300,sh=sec.h||200;
+  return nodes.filter(function(n){
+    if(n.id===sec.id)return false;
+    if(n.type==='sec')return false; // don't drag sections-inside-sections
+    var cx=(n.x||0)+(n.w||180)/2;
+    var cy=(n.y||0)+20;
+    return cx>=sx&&cx<=sx+sw&&cy>=sy&&cy<=sy+sh;
+  });
+}
+
 function setupDrag(handle,n){
-  handle.style.cursor='grab';
   handle.addEventListener('mousedown',function(e){
-    // Never drag when clicking interactive elements
-    if(e.target.closest('.cn-rsz,.cn-del,.dot-grip,.cnb-mode,.stage-del,.proj-add,.cdots,.cdot,.nt-sel,.nt-color'))return;
-    if(e.target.isContentEditable||['INPUT','TEXTAREA','BUTTON','SELECT'].includes(e.target.tagName))return;
+    // Only left button
     if(e.button!==0)return;
-    e.stopPropagation();e.preventDefault();
-    nDrag={node:n};
-    nDragOff.x=(e.clientX-cOffX)/cScale-n.x;
-    nDragOff.y=(e.clientY-cOffY)/cScale-n.y;
-    // Visual feedback
-    var el=document.getElementById(n.id);
-    if(el)el.classList.add('dragging');
-    handle.style.cursor='grabbing';
+    // Never intercept resize handle or delete
+    if(e.target.closest('.cn-rsz,.cn-del'))return;
+
+    if(editMode==='drag'){
+      // MOVE MODE: the ENTIRE element drags — block ALL child interactions
+      e.stopPropagation();e.preventDefault();
+      // Calculate children if this is a section
+      var children=n.type==='sec'?getNodesInsideSection(n):[];
+      nDrag={
+        node:n,
+        children:children,
+        childOffsets:children.map(function(c){return{id:c.id,dx:c.x-n.x,dy:c.y-n.y};})
+      };
+      nDragOff.x=(e.clientX-cOffX)/cScale-n.x;
+      nDragOff.y=(e.clientY-cOffY)/cScale-n.y;
+      var el=document.getElementById(n.id);
+      if(el)el.classList.add('dragging');
+      cpanel.style.cursor='grabbing';
+    } else {
+      // EDIT MODE: only drag from non-editable areas (bar/header)
+      if(e.target.isContentEditable||['INPUT','TEXTAREA','BUTTON','SELECT'].includes(e.target.tagName))return;
+      if(e.target.closest('.dot-grip,.cnb-mode,.stage-del,.proj-add,.cdots,.cdot,.cn-rsz'))return;
+      e.stopPropagation();e.preventDefault();
+      nDrag={node:n,children:[],childOffsets:[]};
+      nDragOff.x=(e.clientX-cOffX)/cScale-n.x;
+      nDragOff.y=(e.clientY-cOffY)/cScale-n.y;
+      var el2=document.getElementById(n.id);
+      if(el2)el2.classList.add('dragging');
+      cpanel.style.cursor='grabbing';
+    }
   });
 }
 
@@ -2005,9 +2077,7 @@ function mkSection(n){
   div.appendChild(bar);
   var body=E('div','cns-body');div.appendChild(body);
   div.appendChild(mkResizeHandle(n));div.appendChild(mkDelBtn(n));
-  // Drag from bar always; full div drag in drag mode
-  setupDrag(bar,n);
-  if(editMode==='drag') setupDrag(div,n);
+  setupDrag(div,n);
   return div;
 }
 
@@ -2109,9 +2179,7 @@ function mkProject(n){
   renderStages();
   div.appendChild(body);
   div.appendChild(mkDelBtn(n));
-  // Drag from header; or entire project in drag mode
-  setupDrag(head,n);
-  if(editMode==='drag') setupDrag(div,n);
+  setupDrag(div,n);
   return div;
 }
 
@@ -2199,15 +2267,14 @@ function mkBlock(n){
   modeBtn.addEventListener('click',function(e){e.stopPropagation();if(editMode!=='edit')return;pushU();n.wrap=wrap==='wrap'?'extend':'wrap';renderCanvas();});
   div.appendChild(modeBtn);
   div.appendChild(mkDelBtn(n));
-  // Always add resize handle (both modes get it)
   div.appendChild(mkResizeHandle(n));
 
-  // canvas drag — whole block draggable in drag mode
-  if(editMode==='drag') setupDrag(div,n);
+  // Always drag from whole block — setupDrag handles mode internally
+  setupDrag(div,n);
 
-  // selection toggle
+  // selection toggle (edit mode only)
   div.addEventListener('click',function(e){
-    if(cTool==='select'){
+    if(editMode==='edit'&&cTool==='select'){
       e.stopPropagation();
       if(selectedNodes.has(n.id))selectedNodes.delete(n.id);
       else selectedNodes.add(n.id);
@@ -2215,18 +2282,13 @@ function mkBlock(n){
     }
   });
 
-  if(editMode==='edit'){
-    textWrap.addEventListener('click',function(e){
-      e.stopPropagation();pBlk={id:n.id,mode:'edit'};
-      openBM({title:n.title,hours:n.hours||0,minutes:n.minutes||0,color:n.color||'#6c8aff',wrap:n.wrap||'wrap'});
-    });
-  }else{
-    div.addEventListener('dblclick',function(e){
-      if(e.target.closest('.dot-grip,.cn-rsz,.cn-del'))return;
-      pBlk={id:n.id,mode:'edit'};
-      openBM({title:n.title,hours:n.hours||0,minutes:n.minutes||0,color:n.color||'#6c8aff',wrap:n.wrap||'wrap'});
-    });
-  }
+  // Double-click to edit block details (edit mode only)
+  div.addEventListener('dblclick',function(e){
+    if(editMode!=='edit')return;
+    if(e.target.closest('.dot-grip,.cn-rsz,.cn-del'))return;
+    pBlk={id:n.id,mode:'edit'};
+    openBM({title:n.title,hours:n.hours||0,minutes:n.minutes||0,color:n.color||'#6c8aff',wrap:n.wrap||'wrap'});
+  });
   return div;
 }
 
